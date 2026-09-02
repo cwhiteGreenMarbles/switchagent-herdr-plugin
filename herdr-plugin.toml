@@ -1,0 +1,20 @@
+id = "chris.switchagent"
+name = "Switch Agent"
+version = "0.1.0"
+min_herdr_version = "0.8.0"
+description = "Hand the current pane's agent session to a different agent: recent turns plus a context spine, injected as the new agent's first prompt."
+platforms = ["macos", "linux"]
+
+[[panes]]
+id = "switch"
+title = "Switch agent"
+placement = "popup"
+width = "70%"
+height = "70%"
+command = ["/usr/bin/env", "python3", "switch.py"]
+
+[[actions]]
+id = "switch"
+title = "Switch agent"
+contexts = ["workspace"]
+command = ["/usr/bin/env", "python3", "open_switch.py"]
