@@ -97,6 +97,12 @@ would be injected, and starts nothing.
   their header. Cursor is a first-class *target*.
 - **Codex tool paths are best-effort.** Its shell tool records a command, not a
   path, so file activity from a Codex session is usually empty.
+- **First-run modals can swallow the handoff.** An agent showing "do you trust
+  this directory?" is reported by Herdr as idle and ready, so the first
+  injection lands in the dialog instead of the prompt. Cursor is started with
+  `--trust` to avoid it, and an injection that visibly went nowhere is retried
+  once. An agent with a startup dialog and no way to suppress it will need its
+  own entry in `STARTUP_ARGS`.
 - **The 40000-character ceiling is a starting guess**, not a measured limit for
   any particular agent. Lower it if a target truncates the paste.
 - Gemini and the other kinds Herdr can start have no session store this plugin

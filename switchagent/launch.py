@@ -41,6 +41,12 @@ KINDS = (
 # Kinds whose executable is not simply the kind name.
 EXECUTABLE = {"cursor": "cursor-agent", "qodercli": "qoder"}
 
+# A first-run modal — "do you trust this directory?" — leaves Herdr reporting
+# the agent as idle and interactive_ready while the dialog is really what has
+# focus. The first injection then lands in the dialog and is lost. Where the
+# agent can be told up front not to ask, it is.
+STARTUP_ARGS = {"cursor": ("--trust",)}
+
 PREAMBLE = (
     "You are taking over an in-progress session from %s. Everything below is "
     "the prior context: the task in the user's own words, the files the work "
@@ -82,7 +88,9 @@ def switch(session, kind, handoff, settings, caller_pane, report, log_path=None)
     report("starting %s as %s in %s" % (kind, name, pane_id))
     # `agent start` blocks until Herdr sees the agent ready, and this runs in a
     # session-modal popup, so it is spawned detached and polled instead.
-    herdr_api.start_agent_detached(name, kind, pane_id, [], log_path)
+    herdr_api.start_agent_detached(
+        name, kind, pane_id, list(STARTUP_ARGS.get(kind, ())), log_path
+    )
 
     status = wait_ready(name, report)
     if status == "blocked":
@@ -92,7 +100,7 @@ def switch(session, kind, handoff, settings, caller_pane, report, log_path=None)
         )
 
     report("injecting %s" % handoff.summary())
-    herdr_api.agent_prompt(name, PREAMBLE % session.kind + handoff.text)
+    _inject(name, PREAMBLE % session.kind + handoff.text, report)
 
     if settings.get("focus_new_agent"):
         try:
@@ -125,3 +133,26 @@ def wait_ready(name, report, timeout=90, poll=1.0):
             "%s did not start within %ds — check the plugin log" % (name, timeout)
         )
     raise herdr_api.HerdrError("%s never became ready to take a prompt" % name)
+
+
+STALLED = "agent_prompt_stalled"
+
+
+def _inject(name, text, report, retries=1):
+    """Submit the handoff, retrying once if it went nowhere.
+
+    Herdr reports `agent_prompt_stalled` when nothing about the agent changed
+    within five seconds of a submission. That means the text was not taken —
+    a startup dialog swallowed it, or the agent was not listening yet — so the
+    same text can safely be sent again. A submission that *was* taken moves the
+    agent's state, and never reports this.
+    """
+    while True:
+        try:
+            return herdr_api.agent_prompt(name, text)
+        except herdr_api.HerdrError as error:
+            if retries <= 0 or STALLED not in str(error):
+                raise
+            retries -= 1
+            report("nothing took the prompt; retrying once")
+            time.sleep(2)
